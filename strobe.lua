@@ -10,12 +10,8 @@
 ---   - If you want to use an R/C on-off switch, assign the on-off R/C channel to
 ---     SCR_USER2, otherwise set SCR_USER2 to 0 (zero).
 
-local STROBE_SERVO = param:get('SCR_USER1') - 1 -- Servo number is zero indexed
-
-if STROBE_SERVO < 0 or STROBE_SERVO > 11 then
-    gcs:send_text(1, "strobe.lua: invalid SCR_USER1 servo# (1-12)")
-    return
-end
+local STROBE_SERVO = assert(param:get('SCR_USER1') - 1, 
+    "strobe.lua: invalid SCR_USER1 servo# (1-12)") -- Servo number is zero indexed
 
 local RC_ON_OFF = param:get('SCR_USER2') -- Set to 0 to disable manual R/C on-off switch
 
@@ -56,18 +52,18 @@ function update()
             switch_index = 1
         end
 
-        SRV_Channels:set_output_pwm_chan_timeout(STROBE_SERVO, ON_OFF_arr[ SWITCH_arr[switch_index] ], MS_DELAY)
+        SRV_Channels:set_output_pwm_chan_timeout(STROBE_SERVO, 
+            ON_OFF_arr[ SWITCH_arr[switch_index] ], MS_DELAY)
 
         return update, MS_DELAY
 
     else --- Strobe is off
 
-        SRV_Channels:set_output_pwm_chan_timeout(STROBE_SERVO, ON_OFF_arr[ 0 ], LONG_DELAY)
+        SRV_Channels:set_output_pwm_chan_timeout(STROBE_SERVO, 
+            ON_OFF_arr[ 0 ], LONG_DELAY)
 
         return update, LONG_DELAY
-
     end
-
 end
 
 gcs:send_text(1, "strobe.lua started")

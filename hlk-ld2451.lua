@@ -44,7 +44,7 @@ local range = 0
 
 local ack_count = 0
 
-local max_acks = 10 -- ms
+local MAX_ACKS = 10 -- ms
 
 local loop_idx = 0
 
@@ -156,7 +156,7 @@ function program_ack()
     if bytes_ready < 18 then
 
         ack_count=ack_count + 1
-        if ack_count > max_acks then
+        if ack_count > MAX_ACKS then
             gcs:send_text(3,
             "Rangefinder failed to enter programming mode")
             return
