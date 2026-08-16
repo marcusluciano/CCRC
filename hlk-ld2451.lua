@@ -188,8 +188,7 @@ end
 ---comment
 ---@param next_fn function
 ---@param ack_index integer - Position of status byte in data
----@return unknown
----@return integer
+---@return function, integer
 local function program_ack(next_fn, ack_index)
 
     bytes_ready = serial_port:available()
@@ -219,6 +218,7 @@ local function program_ack(next_fn, ack_index)
                 status_byte = serial_port:read()
 
                 target_index = target_index + 1
+
                 if ack_index == target_index then
 
                     assert(status_byte == 0, gcs:send_text(3,"HLK-LD2451 configuration failed"))
