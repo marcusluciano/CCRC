@@ -38,7 +38,7 @@ local LONG_DELAY = 1000 -- If strobe is off, only check once per LONG_DELAY ms
 
 local rc_input = -1
 
-function update()
+local function update()
 
     if RC_ON_OFF > 0 then --- Check the manual switch value
         rc_input = rc:get_pwm(RC_ON_OFF)

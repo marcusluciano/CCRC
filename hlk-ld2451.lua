@@ -34,10 +34,6 @@ local CONFIG_TRAILER = {0x04, 0x03, 0x02, 0x01}
 
 local CONFIG_MODE = {0x04, 0x00, 0xFF, 0x00, 0x01, 0x00} -- + CMD hdr/trlr
 
-local CONFIG_STATUS_INDEX = 5 -- 0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
-
-local SET_TD_STATUS_INDEX = 2 -- 0x02, 0x01, 0x00, 0x00
-
 --- 95m max, bidirectional, 1 kph threshold, 0.25s delay
 local CONFIGURATION = {0x5F, 0x02, 0x01, 0x40}
 
@@ -45,7 +41,13 @@ local END_CONFIG = {0x02, 0x00, 0xFE, 0x00}
 
 --local END_CONFIG_ACK = {0x04, 0x00, 0xFE, 0x01, 0x00, 0x00}
 
-local MIN_ACK_LEN = #CONFIG_HEADER + 2 + 4 + #CONFIG_TRAILER
+local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + 4 + #CONFIG_TRAILER
+
+local CONFIG_STATUS_INDEX = 5 -- 0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+
+local SET_TD_STATUS_INDEX = 2 -- 0x02, 0x01, 0x00, 0x00
+
+local END_CONFIG_STATUS_INDEX = 2 -- 0xFE, 0x01, 0x00, 0x00
 
 --- @type integer - Data length inside reporting frame
 local data_length = 0
@@ -186,13 +188,13 @@ end
 
 ---@function program_ack - Read ACK and call next fn in line
 ---@param next_fn function
----@param ack_index integer - Position of status byte in data (0=success)
+---@param ack_index integer - Position of status byte in data (0x01=success)
 ---@return function, integer
 local function program_ack(next_fn, ack_index)
 
     bytes_ready = serial_port:available()
 
-    if bytes_ready < MIN_ACK_LEN then
+    if bytes_ready < MIN_ACK_BYTES then
 
         ack_count=ack_count + 1
 
@@ -220,7 +222,7 @@ local function program_ack(next_fn, ack_index)
 
                 if index == ack_index then
 
-                    assert(status_byte == 0, 
+                    assert(status_byte == 0x01, 
                         gcs:send_text(3,"HLK-LD2451 configuration failed"))
                 end
                 data_length = data_length - 1
@@ -258,7 +260,7 @@ local function end_config()
 
     ack_count = 0
 
-    return program_ack(update, -1), 1
+    return program_ack(update, END_CONFIG_STATUS_INDEX), 1
 end
 
 local function setTargetDetection()
