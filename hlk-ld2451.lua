@@ -11,8 +11,8 @@ local rangefinder_instance = assert(rangefinder:get_backend(rangefinder_number),
     gcs:send_text(0, "Lua rangefinder instance not found"))
 
 local rngfnd_x = string.format("RNGFND%x", rangefinder_number)
-param:set_by_name(rngfnd_x + '_MIN', 50)
-param:set_by_name(rngfnd_x + '_MAX', 9000)
+param:set_by_name(rngfnd_x + '_MIN', 50) -- cm
+param:set_by_name(rngfnd_x + '_MAX', 9000) -- cm
 
 local serial_port = assert(serial:find_serial(0), 
     gcs:send_text(0, "Serial port type 28 not found")) -- First LUA port
@@ -45,16 +45,16 @@ local END_CONFIG = {0x02, 0x00, 0xFE, 0x00}
 
 --local END_CONFIG_ACK = {0x04, 0x00, 0xFE, 0x01, 0x00, 0x00}
 
-local MIN_ACK_LEN = #CONFIG_HEADER + 10 + #CONFIG_TRAILER
+local MIN_ACK_LEN = #CONFIG_HEADER + 2 + 4 + #CONFIG_TRAILER
 
---- @type integer - Data length inside frame
+--- @type integer - Data length inside reporting frame
 local data_length = 0
 
 --- @type integer
 local target_quantity = 0
 
 --- @type integer loop index
-local target_index = 0
+local index = 0
 
 --- @type boolean
 local incoming = false
@@ -69,8 +69,8 @@ local target_angle = -1
 local bytes_ready = 0
 
 --- Frame data ---
---- @type integer degrees, +/-10
-local angle = 0x80
+--- @type integer degrees, +/-10 (0x00 - 0xFF)
+local angle = 0x80 -- 0 degrees
 --- @type integer meters
 local range = 0x00
 --- @type integer
@@ -80,7 +80,7 @@ local speed = 0x00
 --- @type integer
 local snr = 0x00
 
---- @type integer - Waiting for data loop count
+--- @type integer - Waiting for data loop counter
 local ack_count = 0
 
 --- @type integer - 99 MAXIMUM, do not use 100
@@ -127,13 +127,13 @@ local function update()
 
             bytes_ready = bytes_ready - 8
 
-            target_index = 0
+            index = 0
 
             distance_m = -1
 
-            while target_index < target_quantity do
+            while index < target_quantity do
                 -- Find the target that is farthest away (i.e. the ground)
-                target_index = target_index + 1
+                index = index + 1
 
                 -- Each target has angle, distance, direction, speed, SNR
                 angle = serial_port:read()
@@ -152,7 +152,8 @@ local function update()
 
             -- Set the distance
             if distance_m > 0.5 and distance_m < 90 then
-                --- @todo Compute and return Cos(target_angle) * distance_m???
+                --- @todo Compute and return Cos(target_angle) * distance_m??? 
+                --- I think AP does this for us
                 rangefinder_instance:distance(distance_m)
             end
 
@@ -180,14 +181,12 @@ local function update()
         end
     end
 
-    ack_count = 0
-
     return update, 100 -- 10 Hz refresh rate
 end
 
----comment
+---@function program_ack - Read ACK and call next fn in line
 ---@param next_fn function
----@param ack_index integer - Position of status byte in data
+---@param ack_index integer - Position of status byte in data (0=success)
 ---@return function, integer
 local function program_ack(next_fn, ack_index)
 
@@ -203,7 +202,7 @@ local function program_ack(next_fn, ack_index)
         return program_ack(next_fn, ack_index), 1
 
     else
-        -- Read ACK, then call device programming
+        -- Read ACK, then call next function
         if  serial_port:read() == CONFIG_HEADER[1] and -- note that reading stops here on mismatch
             serial_port:read() == CONFIG_HEADER[2] and -- and this does not get read if [1] failed
             serial_port:read() == CONFIG_HEADER[3] and
@@ -211,30 +210,34 @@ local function program_ack(next_fn, ack_index)
 
             data_length = serial_port:read() + (256 * serial_port:read())
 
-            target_index = 0
+            index = 0 -- 
 
             while (data_length > 0) do
 
                 status_byte = serial_port:read()
 
-                target_index = target_index + 1
+                index = index + 1
 
-                if ack_index == target_index then
+                if index == ack_index then
 
-                    assert(status_byte == 0, gcs:send_text(3,"HLK-LD2451 configuration failed"))
-
+                    assert(status_byte == 0, 
+                        gcs:send_text(3,"HLK-LD2451 configuration failed"))
                 end
                 data_length = data_length - 1
             end
 
             assert(serial_port:read() == CONFIG_TRAILER[1], 
-                gcs:send_text(3,"HLK-LD2451 ACK error 0x4"))
+                gcs:send_text(3,
+                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[1])))
             assert(serial_port:read() == CONFIG_TRAILER[2], 
-                gcs:send_text(3,"HLK-LD2451 ACK error 0x3"))
+                gcs:send_text(3,
+                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[2])))
             assert(serial_port:read() == CONFIG_TRAILER[3], 
-                gcs:send_text(3,"HLK-LD2451 ACK error 0x2"))
+                gcs:send_text(3,
+                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[3])))
             assert(serial_port:read() == CONFIG_TRAILER[4], 
-                gcs:send_text(3,"HLK-LD2451 ACK error 0x1"))
+                gcs:send_text(3,
+                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[4])))
 
             return next_fn, 1
         end
