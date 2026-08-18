@@ -116,7 +116,7 @@ local function update()
 
         if serial_port:read() == MSG_HEADER[1] and -- note that reading stops here on mismatch
             serial_port:read() == MSG_HEADER[2] and -- and this does not get read if [1] failed
-            serial_port:read() == MSG_HEADER[3] and
+            serial_port:read() == MSG_HEADER[3] and -- etc.
             serial_port:read() == MSG_HEADER[4] then
 
             data_length = serial_port:read() + (256 * serial_port:read())
@@ -228,16 +228,16 @@ local function program_ack(next_fn, ack_index)
 
             assert(serial_port:read() == CONFIG_TRAILER[1], 
                 gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[1])))
+                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[1])))
             assert(serial_port:read() == CONFIG_TRAILER[2], 
                 gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[2])))
+                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[2])))
             assert(serial_port:read() == CONFIG_TRAILER[3], 
                 gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[3])))
+                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[3])))
             assert(serial_port:read() == CONFIG_TRAILER[4], 
                 gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK error %x", CONFIG_TRAILER[4])))
+                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[4])))
 
             return next_fn, 1
         end
