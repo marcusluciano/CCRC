@@ -39,15 +39,13 @@ local CONFIGURATION = {0x5F, 0x02, 0x01, 0x40}
 
 local END_CONFIG = {0x02, 0x00, 0xFE, 0x00}
 
---local END_CONFIG_ACK = {0x04, 0x00, 0xFE, 0x01, 0x00, 0x00}
+local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + #CONFIG_TRAILER
 
-local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + 4 + #CONFIG_TRAILER
+local CONFIG_ACK = {0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00}
 
-local CONFIG_STATUS_INDEX = 5 -- 0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+local TD_STATUS_ACK = {0x02, 0x01, 0x00, 0x00}
 
-local SET_TD_STATUS_INDEX = 2 -- 0x02, 0x01, 0x00, 0x00
-
-local END_CONFIG_STATUS_INDEX = 2 -- 0xFE, 0x01, 0x00, 0x00
+local END_CONFIG_ACK = {0xFE, 0x01, 0x00, 0x00}
 
 --- @type integer - Data length inside reporting frame
 local data_length = 0
@@ -87,9 +85,6 @@ local ack_count = 0
 
 --- @type integer - 99 MAXIMUM, do not use 100
 local MAX_ACKS = 50 -- ms
-
---- @type integer
-local status_byte = 0x00
 
 local function update()
     --- Reporting Frame ---
@@ -186,22 +181,22 @@ local function update()
     return update, 100 -- 10 Hz refresh rate
 end
 
----@function program_ack - Read ACK and call next fn in line
+---@function prMIN_ACK_BYTESogram_ack - Read ACK and call next fn in line
+---@param ACK_arr table - Position of status byte in data (0x01=success)
 ---@param next_fn function
----@param ack_index integer - Position of status byte in data (0x01=success)
 ---@return function, integer
-local function program_ack(next_fn, ack_index)
+local function program_ack(ACK_arr, next_fn)
 
     bytes_ready = serial_port:available()
 
-    if bytes_ready < MIN_ACK_BYTES then
+    if bytes_ready < (MIN_ACK_BYTES + #ACK_arr) then
 
         ack_count=ack_count + 1
 
         assert(ack_count < MAX_ACKS, gcs:send_text(3,
                 "HLK-LD2451 failed to ACK"))
 
-        return program_ack(next_fn, ack_index), 1
+        return program_ack(next_fn, ACK_arr), 1
 
     else
         -- Read ACK, then call next function
@@ -212,19 +207,16 @@ local function program_ack(next_fn, ack_index)
 
             data_length = serial_port:read() + (256 * serial_port:read())
 
-            index = 0 -- 
+            assert(data_length == #ACK_arr, gcs:send_text(0,"hlk-ld2431 bad ack len"))
+
+            index = 0
 
             while (data_length > 0) do
 
-                status_byte = serial_port:read()
-
                 index = index + 1
 
-                if index == ack_index then
+                assert(ACK_arr[index] == serial_port:read(), gcs:send_text("hlk-ld2451 ack err"))
 
-                    assert(status_byte == 0x01, 
-                        gcs:send_text(3,"HLK-LD2451 configuration failed"))
-                end
                 data_length = data_length - 1
             end
 
@@ -244,7 +236,7 @@ local function program_ack(next_fn, ack_index)
             return next_fn, 1
         end
     end
-    return program_ack(next_fn, ack_index), 1
+    return program_ack(ACK_arr, next_fn), 1
 end
 
 local function end_config()
@@ -260,7 +252,7 @@ local function end_config()
 
     ack_count = 0
 
-    return program_ack(update, END_CONFIG_STATUS_INDEX), 1
+    return program_ack(END_CONFIG_ACK, update), 1
 end
 
 local function setTargetDetection()
@@ -276,7 +268,7 @@ local function setTargetDetection()
 
     ack_count = 0
 
-    return program_ack(end_config, SET_TD_STATUS_INDEX), 1
+    return program_ack(TD_STATUS_ACK, end_config), 1
 
 end
 
@@ -293,7 +285,7 @@ local function command_mode()
 
     ack_count = 0
 
-    return program_ack(setTargetDetection, CONFIG_STATUS_INDEX), 1
+    return program_ack(CONFIG_ACK, setTargetDetection), 1
 
 end
 
