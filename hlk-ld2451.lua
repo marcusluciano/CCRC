@@ -86,6 +86,8 @@ local ack_count = 0
 --- @type integer - 99 MAXIMUM, do not use 100
 local MAX_ACKS = 50 -- ms
 
+local datum = 0x00
+
 local function update()
     --- Reporting Frame ---
         -- MSG_HEADER
@@ -155,16 +157,18 @@ local function update()
             end
 
             -- Read trailer
-            if CONFIG_TRAILER[1] == serial_port.read() then
+            index = 0
+
+            while index < #CONFIG_TRAILER and bytes_ready > 0 do
+
+                index = index + 1
+
+                datum = serial_port.read()
+
                 bytes_ready = bytes_ready - 1
-                if CONFIG_TRAILER[2] == serial_port.read() then
-                    bytes_ready = bytes_ready - 1
-                    if CONFIG_TRAILER[3] == serial_port.read() then
-                        bytes_ready = bytes_ready - 1
-                        if CONFIG_TRAILER[4] == serial_port.read() then
-                            bytes_ready = bytes_ready - 1
-                        end
-                    end
+
+                if datum ~= CONFIG_TRAILER[index] then
+                    index = #CONFIG_TRAILER -- Bail on error
                 end
             end
 
@@ -187,33 +191,31 @@ local function read_ack(ACK_arr)
 
     data_length = serial_port:read() + (256 * serial_port:read())
 
-    assert(data_length == #ACK_arr, 
+    assert(data_length == #ACK_arr + #CONFIG_TRAILER, 
         gcs:send_text(0,"hlk-ld2431 bad ack len"))
 
     index = 0
 
-    while (data_length > 0) do
+    while (index < #ACK_arr) do
 
         index = index + 1
 
-        assert(ACK_arr[index] == serial_port:read(), 
+        assert(serial_port:read() == ACK_arr[index], 
             gcs:send_text(string.format("hlk-ld2451 ack[%d] err", index)))
 
         data_length = data_length - 1
     end
 
-    assert(serial_port:read() == CONFIG_TRAILER[1], 
-        gcs:send_text(3,
-        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[1])))
-    assert(serial_port:read() == CONFIG_TRAILER[2], 
-        gcs:send_text(3,
-        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[2])))
-    assert(serial_port:read() == CONFIG_TRAILER[3], 
-        gcs:send_text(3,
-        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[3])))
-    assert(serial_port:read() == CONFIG_TRAILER[4], 
-        gcs:send_text(3,
-        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[4])))
+    index = 0
+
+    while (index < #CONFIG_TRAILER) do
+
+        index = index + 1
+
+        assert(serial_port:read() == CONFIG_TRAILER[index], 
+            gcs:send_text(3, 
+            string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[index])))
+    end
 end
 
 ---@function program_ack - Read ACK and call next fn in line
