@@ -86,6 +86,7 @@ local ack_count = 0
 --- @type integer - 99 MAXIMUM, do not use 100
 local MAX_ACKS = 50 -- ms
 
+--- @type integer
 local datum = 0x00
 
 local function handle_message()
@@ -208,7 +209,7 @@ local function read_ack(ACK_arr)
         index = index + 1
 
         assert(serial_port:read() == ACK_arr[index], 
-            gcs:send_text(string.format("hlk-ld2451 ack[%d] err", index)))
+            gcs:send_text(0, string.format("hlk-ld2451 ack[%d] err", index)))
 
         data_length = data_length - 1
     end
@@ -220,7 +221,7 @@ local function read_ack(ACK_arr)
         index = index + 1
 
         assert(serial_port:read() == CONFIG_TRAILER[index], 
-            gcs:send_text(3, 
+            gcs:send_text(0, 
             string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[index])))
     end
 end
@@ -237,7 +238,7 @@ local function program_ack(ACK_arr, next_fn)
 
         ack_count=ack_count + 1
 
-        assert(ack_count < MAX_ACKS, gcs:send_text(3,
+        assert(ack_count < MAX_ACKS, gcs:send_text(0,
                 "HLK-LD2451 failed to ACK"))
 
         return program_ack(ACK_arr, next_fn), 1
@@ -307,7 +308,7 @@ local function command_mode()
 
 end
 
-gcs:send_text(1, 
+gcs:send_text(0, 
     string.format("hlk-lkd2451.lua #%d started", rangefinder_number))
 
 return command_mode, 1
