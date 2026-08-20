@@ -181,7 +181,42 @@ local function update()
     return update, 100 -- 10 Hz refresh rate
 end
 
----@function prMIN_ACK_BYTESogram_ack - Read ACK and call next fn in line
+---@function read_ack 
+---@param ACK_arr any
+local function read_ack(ACK_arr)
+
+    data_length = serial_port:read() + (256 * serial_port:read())
+
+    assert(data_length == #ACK_arr, 
+        gcs:send_text(0,"hlk-ld2431 bad ack len"))
+
+    index = 0
+
+    while (data_length > 0) do
+
+        index = index + 1
+
+        assert(ACK_arr[index] == serial_port:read(), 
+            gcs:send_text(string.format("hlk-ld2451 ack[%d] err", index)))
+
+        data_length = data_length - 1
+    end
+
+    assert(serial_port:read() == CONFIG_TRAILER[1], 
+        gcs:send_text(3,
+        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[1])))
+    assert(serial_port:read() == CONFIG_TRAILER[2], 
+        gcs:send_text(3,
+        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[2])))
+    assert(serial_port:read() == CONFIG_TRAILER[3], 
+        gcs:send_text(3,
+        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[3])))
+    assert(serial_port:read() == CONFIG_TRAILER[4], 
+        gcs:send_text(3,
+        string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[4])))
+end
+
+---@function program_ack - Read ACK and call next fn in line
 ---@param ACK_arr table - Position of status byte in data (0x01=success)
 ---@param next_fn function
 ---@return function, integer
@@ -196,7 +231,7 @@ local function program_ack(ACK_arr, next_fn)
         assert(ack_count < MAX_ACKS, gcs:send_text(3,
                 "HLK-LD2451 failed to ACK"))
 
-        return program_ack(next_fn, ACK_arr), 1
+        return program_ack(ACK_arr, next_fn), 1
 
     else
         -- Read ACK, then call next function
@@ -205,33 +240,7 @@ local function program_ack(ACK_arr, next_fn)
             serial_port:read() == CONFIG_HEADER[3] and
             serial_port:read() == CONFIG_HEADER[4] then
 
-            data_length = serial_port:read() + (256 * serial_port:read())
-
-            assert(data_length == #ACK_arr, gcs:send_text(0,"hlk-ld2431 bad ack len"))
-
-            index = 0
-
-            while (data_length > 0) do
-
-                index = index + 1
-
-                assert(ACK_arr[index] == serial_port:read(), gcs:send_text("hlk-ld2451 ack err"))
-
-                data_length = data_length - 1
-            end
-
-            assert(serial_port:read() == CONFIG_TRAILER[1], 
-                gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[1])))
-            assert(serial_port:read() == CONFIG_TRAILER[2], 
-                gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[2])))
-            assert(serial_port:read() == CONFIG_TRAILER[3], 
-                gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[3])))
-            assert(serial_port:read() == CONFIG_TRAILER[4], 
-                gcs:send_text(3,
-                string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[4])))
+            pcall(read_ack, ACK_arr)
 
             return next_fn, 1
         end
