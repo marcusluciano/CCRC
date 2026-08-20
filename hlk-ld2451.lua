@@ -39,13 +39,13 @@ local CONFIGURATION = {0x5F, 0x02, 0x01, 0x40}
 
 local END_CONFIG = {0x02, 0x00, 0xFE, 0x00}
 
-local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + #CONFIG_TRAILER
-
 local CONFIG_ACK = {0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00}
 
 local TD_STATUS_ACK = {0x02, 0x01, 0x00, 0x00}
 
 local END_CONFIG_ACK = {0xFE, 0x01, 0x00, 0x00}
+
+local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + #CONFIG_TRAILER
 
 --- @type integer - Data length inside reporting frame
 local data_length = 0
@@ -88,6 +88,45 @@ local MAX_ACKS = 50 -- ms
 
 local datum = 0x00
 
+local function handle_message()
+
+    target_quantity = serial_port:read()
+
+    incoming = serial_port:read()
+
+    bytes_ready = bytes_ready - 2
+
+    index = 0
+
+    distance_m = -1
+
+    while index < target_quantity do
+        -- Find the target that is farthest away (i.e. the ground)
+        index = index + 1
+
+        -- Each target has angle, distance, direction, speed, SNR
+        angle = serial_port:read()
+        range = serial_port:read()
+        direction = serial_port:read()
+        speed = serial_port:read()
+        snr = serial_port:read()
+
+        bytes_ready = bytes_ready - 5
+
+        if range > distance_m and range < 90 and snr > 1 then
+            distance_m = range
+            target_angle = angle
+        end
+    end
+
+    -- Set the distance
+    if distance_m > 0.5 and distance_m < 90 then
+        --- @todo Compute and return Cos(target_angle) * distance_m??? 
+        --- I think AP does this for us
+        rangefinder_instance:distance(distance_m)
+    end
+end
+
 local function update()
     --- Reporting Frame ---
         -- MSG_HEADER
@@ -120,41 +159,9 @@ local function update()
 
             data_length = serial_port:read() + (256 * serial_port:read())
 
-            target_quantity = serial_port:read()
+            bytes_ready = bytes_ready - 6
 
-            serial_port:read() -- incoming = serial_port:read() == 0x01
-
-            bytes_ready = bytes_ready - 8
-
-            index = 0
-
-            distance_m = -1
-
-            while index < target_quantity do
-                -- Find the target that is farthest away (i.e. the ground)
-                index = index + 1
-
-                -- Each target has angle, distance, direction, speed, SNR
-                angle = serial_port:read()
-                range = serial_port:read()
-                direction = serial_port:read()
-                speed = serial_port:read()
-                snr = serial_port:read()
-
-                bytes_ready = bytes_ready - 5
-
-                if range > distance_m and range < 90 and snr > 1 then
-                    distance_m = range
-                    target_angle = angle
-                end
-            end
-
-            -- Set the distance
-            if distance_m > 0.5 and distance_m < 90 then
-                --- @todo Compute and return Cos(target_angle) * distance_m??? 
-                --- I think AP does this for us
-                rangefinder_instance:distance(distance_m)
-            end
+            handle_message()
 
             -- Read trailer
             index = 0
