@@ -10,7 +10,8 @@ local MSG_STAT = 2
 --- @type integer - Scripting type rangefinder instance #
 local rangefinder_number = 0
 
-local rangefinder_instance = assert(rangefinder:get_backend(rangefinder_number), 
+local rangefinder_instance = assert(
+    rangefinder:get_backend(rangefinder_number), 
     gcs:send_text(MSG_STAT, "Lua rangefinder instance not found"))
 
 local rngfnd_x = string.format("RNGFND%x", rangefinder_number)
@@ -70,9 +71,6 @@ local distance_m = -1
 --- @type integer - angle of max target
 local target_angle = -1
 
---- @type integer
-local bytes_ready = 0
-
 --- Frame data ---
 --- @type integer degrees, +/-10 (0x00 - 0xFF)
 local angle = 0x80 -- 0 degrees
@@ -100,13 +98,11 @@ local function handle_message()
 
     incoming = serial_port:read()
 
-    bytes_ready = bytes_ready - 2
-
     index = 0
 
     distance_m = -1
 
-    while index < target_quantity do
+    while index < target_quantity and serial_port:available() >= 5 do
         -- Find the target that is farthest away (i.e. the ground)
         index = index + 1
 
@@ -116,8 +112,6 @@ local function handle_message()
         direction = serial_port:read()
         speed = serial_port:read()
         snr = serial_port:read()
-
-        bytes_ready = bytes_ready - 5
 
         if range > distance_m and range < 90 and snr > 1 then
             distance_m = range
@@ -145,18 +139,16 @@ local function update()
         -- Incoming? (0/1) 1 byte
         -- 5 bytes per target (angle, range, direction, speed, snr)
 
-    bytes_ready = serial_port:available()
-
-    if bytes_ready < MIN_MSG_BYTES then
+    if serial_port:available() < MIN_MSG_BYTES then
 
         ack_count = ack_count + 1
 
         assert(ack_count < MAX_ACKS, gcs:send_text(MSG_STAT, "HLK-LD2451 not responding"))
 
-        return update, 1
+        return update, 5
     end
 
-    while bytes_ready >= MIN_MSG_BYTES do
+    while serial_port:available() >= MIN_MSG_BYTES do
 
         if serial_port:read() == MSG_HEADER[1] and -- note that reading stops here on mismatch
             serial_port:read() == MSG_HEADER[2] and -- and this does not get read if [1] failed
@@ -165,19 +157,17 @@ local function update()
 
             data_length = serial_port:read() + (256 * serial_port:read())
 
-            bytes_ready = bytes_ready - 6
-
-            handle_message()
+            if serial_port:available() > 3 then
+                handle_message()
+            end
 
             index = 0
 
-            while index < #CONFIG_TRAILER and bytes_ready > 0 do
+            while index < #CONFIG_TRAILER and serial_port:available() > 0 do
 
                 index = index + 1
 
                 datum = serial_port.read()
-
-                bytes_ready = bytes_ready - 1
 
                 if datum ~= CONFIG_TRAILER[index] then
                     index = #CONFIG_TRAILER -- Bail on error
@@ -185,9 +175,7 @@ local function update()
             end
 
         else
-            bytes_ready = bytes_ready - 1
-
-            if bytes_ready < 1 then
+            if serial_port:available() < 1 then
                 ack_count = 0
                 return update, math.abs(100 - ack_count) -- We're out of sync, advance the timing
             end
@@ -203,7 +191,7 @@ local function read_ack(ACK_arr)
 
     data_length = serial_port:read() + (256 * serial_port:read())
 
-    assert(data_length == #ACK_arr + #CONFIG_TRAILER, 
+    assert(data_length == #ACK_arr, 
         gcs:send_text(MSG_STAT,"hlk-ld2431 bad ack len"))
 
     index = 0
@@ -236,9 +224,7 @@ end
 ---@return function, integer
 local function handle_ack(ACK_arr, next_fn)
 
-    bytes_ready = serial_port:available()
-
-    if bytes_ready < (MIN_ACK_BYTES + #ACK_arr) then
+    if serial_port:available() < (MIN_ACK_BYTES + #ACK_arr) then
 
         ack_count=ack_count + 1
 
