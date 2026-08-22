@@ -8,15 +8,15 @@
 local MSG_STAT = 2
 
 --- @type integer - Scripting type rangefinder instance #
-local rangefinder_number = 0
+local RANGEFINDER_NUMBER = 0
 
 local rangefinder_instance = assert(
-    rangefinder:get_backend(rangefinder_number), 
+    rangefinder:get_backend(RANGEFINDER_NUMBER), 
     gcs:send_text(MSG_STAT, "Lua rangefinder instance not found"))
 
-local rngfnd_x = string.format("RNGFND%x", rangefinder_number)
-param:set_by_name(rngfnd_x + '_MIN', 50) -- cm
-param:set_by_name(rngfnd_x + '_MAX', 9000) -- cm
+local RNGFND_X = string.format("RNGFND%x", RANGEFINDER_NUMBER)
+param:set_by_name(RNGFND_X + '_MIN', 50) -- cm
+param:set_by_name(RNGFND_X + '_MAX', 9000) -- cm
 
 local serial_port = assert(serial:find_serial(0), 
     gcs:send_text(MSG_STAT, "Serial port type 28 not found")) -- First LUA port
@@ -59,7 +59,7 @@ local data_length = 0
 --- @type integer
 local target_quantity = 0
 
---- @type integer loop index
+--- @type integer garbage collection proof loop variable
 local index = 0
 
 --- @type boolean
@@ -299,6 +299,6 @@ local function set_config_mode()
 end
 
 gcs:send_text(MSG_STAT, 
-    string.format("hlk-lkd2451.lua #%d started", rangefinder_number))
+    string.format("hlk-lkd2451.lua #%d started", RANGEFINDER_NUMBER))
 
 return set_config_mode, 1
