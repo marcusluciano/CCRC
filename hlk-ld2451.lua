@@ -4,18 +4,21 @@
 --- @author https://www.chestercountyrc.com/
 --- @license MIT
 
+--- @type integer - MAV_SEVERITY_CRITICAL
+local MSG_STAT = 2
+
 --- @type integer - Scripting type rangefinder instance #
 local rangefinder_number = 0
 
 local rangefinder_instance = assert(rangefinder:get_backend(rangefinder_number), 
-    gcs:send_text(0, "Lua rangefinder instance not found"))
+    gcs:send_text(MSG_STAT, "Lua rangefinder instance not found"))
 
 local rngfnd_x = string.format("RNGFND%x", rangefinder_number)
 param:set_by_name(rngfnd_x + '_MIN', 50) -- cm
 param:set_by_name(rngfnd_x + '_MAX', 9000) -- cm
 
 local serial_port = assert(serial:find_serial(0), 
-    gcs:send_text(0, "Serial port type 28 not found")) -- First LUA port
+    gcs:send_text(MSG_STAT, "Serial port type 28 not found")) -- First LUA port
 
 serial_port:begin(115200)
 serial_port:configure_parity(0)
@@ -148,7 +151,7 @@ local function update()
 
         ack_count = ack_count + 1
 
-        assert(ack_count < MAX_ACKS, gcs:send_text(0, "HLK-LD2451 not responding"))
+        assert(ack_count < MAX_ACKS, gcs:send_text(MSG_STAT, "HLK-LD2451 not responding"))
 
         return update, 1
     end
@@ -201,7 +204,7 @@ local function read_ack(ACK_arr)
     data_length = serial_port:read() + (256 * serial_port:read())
 
     assert(data_length == #ACK_arr + #CONFIG_TRAILER, 
-        gcs:send_text(0,"hlk-ld2431 bad ack len"))
+        gcs:send_text(MSG_STAT,"hlk-ld2431 bad ack len"))
 
     index = 0
 
@@ -210,7 +213,7 @@ local function read_ack(ACK_arr)
         index = index + 1
 
         assert(serial_port:read() == ACK_arr[index], 
-            gcs:send_text(0, string.format("hlk-ld2451 ack[%d] err", index)))
+            gcs:send_text(MSG_STAT, string.format("hlk-ld2451 ack[%d] err", index)))
 
         data_length = data_length - 1
     end
@@ -222,7 +225,7 @@ local function read_ack(ACK_arr)
         index = index + 1
 
         assert(serial_port:read() == CONFIG_TRAILER[index], 
-            gcs:send_text(0, 
+            gcs:send_text(MSG_STAT, 
             string.format( "HLK-LD2451 ACK expected %x", CONFIG_TRAILER[index])))
     end
 end
@@ -239,7 +242,7 @@ local function handle_ack(ACK_arr, next_fn)
 
         ack_count=ack_count + 1
 
-        assert(ack_count < MAX_ACKS, gcs:send_text(0,
+        assert(ack_count < MAX_ACKS, gcs:send_text(MSG_STAT,
                 "HLK-LD2451 failed to ACK"))
 
         return handle_ack(ACK_arr, next_fn), 1
@@ -309,7 +312,7 @@ local function set_config_mode()
 
 end
 
-gcs:send_text(0, 
+gcs:send_text(MSG_STAT, 
     string.format("hlk-lkd2451.lua #%d started", rangefinder_number))
 
 return set_config_mode, 1

@@ -11,7 +11,7 @@
 ---     SCR_USER2, otherwise set SCR_USER2 to 0 (zero).
 
 local STROBE_SERVO = assert(param:get('SCR_USER1') - 1, 
-    "strobe.lua: invalid SCR_USER1 servo# (1-12)") -- Servo number is zero indexed
+    gcs:send_text(2,"strobe.lua: invalid SCR_USER1 servo# (1-12)")) -- Servo number is zero indexed
 
 local RC_ON_OFF = param:get('SCR_USER2') -- Set to 0 to disable manual R/C on-off switch
 
@@ -66,6 +66,6 @@ local function update()
     end
 end
 
-gcs:send_text(1, "strobe.lua started")
+gcs:send_text(2, "strobe.lua started")
 
 return update, MS_DELAY
