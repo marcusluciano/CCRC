@@ -25,25 +25,27 @@ local MSG_HEADER = {0xF4, 0xF3, 0xF2, 0xF1}
 
 local MSG_TRAILER = {0xF8, 0xF7, 0xF6, 0xF5}
 
---- 2 data len + 1 Target Qty + 1 Alarm (and 0 targets) 
-local MIN_MSG_BYTES = #MSG_HEADER + 4 + #MSG_TRAILER
-
 local CONFIG_HEADER = {0xFD, 0xFC, 0xFB, 0xFA}
 
 local CONFIG_TRAILER = {0x04, 0x03, 0x02, 0x01}
 
-local CONFIG_MODE = {0x04, 0x00, 0xFF, 0x00, 0x01, 0x00} -- + CMD hdr/trlr
-
---- 95m max, bidirectional, 1 kph threshold, 0.25s delay
-local CONFIG_DATA = {0x5F, 0x02, 0x01, 0x40}
-
-local CONFIG_END = {0x02, 0x00, 0xFE, 0x00}
-
+--- length + data to put device into config mode 
+local CONFIG_MODE = {0x04, 0x00, 0xFF, 0x00, 0x01, 0x00} 
+--- Length will be tested during ACK read
 local CONFIG_ACK = {0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00}
 
+--- len=0x06, CW=0x02, 95m max, bidirectional, 1 kph threshold, 0.25s delay
+local CONFIG_DATA = {0x06, 0x00, 0x02, 0x00, 0x5F, 0x02, 0x01, 0x40}
+--- Length will be tested during ACK read
 local TD_STATUS_ACK = {0x02, 0x01, 0x00, 0x00}
 
+--- length + data to get out of config mode 
+local CONFIG_END = {0x02, 0x00, 0xFE, 0x00}
+--- Length will be tested during ACK read
 local CONFIG_END_ACK = {0xFE, 0x01, 0x00, 0x00}
+
+--- 2 data len + 1 Target Qty + 1 Alarm (and 0 targets) 
+local MIN_MSG_BYTES = #MSG_HEADER + 4 + #MSG_TRAILER
 
 local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + #CONFIG_TRAILER
 
