@@ -35,15 +35,15 @@ local CONFIG_TRAILER = {0x04, 0x03, 0x02, 0x01}
 local CONFIG_MODE = {0x04, 0x00, 0xFF, 0x00, 0x01, 0x00} -- + CMD hdr/trlr
 
 --- 95m max, bidirectional, 1 kph threshold, 0.25s delay
-local CONFIGURATION = {0x5F, 0x02, 0x01, 0x40}
+local CONFIG_DATA = {0x5F, 0x02, 0x01, 0x40}
 
-local END_CONFIG = {0x02, 0x00, 0xFE, 0x00}
+local CONFIG_END = {0x02, 0x00, 0xFE, 0x00}
 
 local CONFIG_ACK = {0xFF, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00}
 
 local TD_STATUS_ACK = {0x02, 0x01, 0x00, 0x00}
 
-local END_CONFIG_ACK = {0xFE, 0x01, 0x00, 0x00}
+local CONFIG_END_ACK = {0xFE, 0x01, 0x00, 0x00}
 
 local MIN_ACK_BYTES = #CONFIG_HEADER + 2 + #CONFIG_TRAILER
 
@@ -84,7 +84,7 @@ local snr = 0x00
 local ack_count = 0
 
 --- @type integer - 99 MAXIMUM, do not use 100
-local MAX_ACKS = 50 -- ms
+local MAX_ACKS = 20 -- ms
 
 --- @type integer
 local datum = 0x00
@@ -122,8 +122,8 @@ local function handle_message()
 
     -- Set the distance
     if distance_m > 0.5 and distance_m < 90 then
-        --- @todo Compute and return Cos(target_angle) * distance_m??? 
-        --- I think AP does this for us
+        --- @todo See if we need to compute adjustment 
+        --- based on target_angle if banking or pitching  
         rangefinder_instance:distance(distance_m)
     end
 end
@@ -164,7 +164,6 @@ local function update()
 
             handle_message()
 
-            -- Read trailer
             index = 0
 
             while index < #CONFIG_TRAILER and bytes_ready > 0 do
@@ -194,7 +193,7 @@ local function update()
 end
 
 ---@function read_ack 
----@param ACK_arr any
+---@param ACK_arr table<number>
 local function read_ack(ACK_arr)
 
     data_length = serial_port:read() + (256 * serial_port:read())
@@ -226,11 +225,11 @@ local function read_ack(ACK_arr)
     end
 end
 
----@function program_ack - Read ACK and call next fn in line
+---@function handle_ack - Read ACK and call next fn in line
 ---@param ACK_arr table - Position of status byte in data (0x01=success)
 ---@param next_fn function
 ---@return function, integer
-local function program_ack(ACK_arr, next_fn)
+local function handle_ack(ACK_arr, next_fn)
 
     bytes_ready = serial_port:available()
 
@@ -241,7 +240,7 @@ local function program_ack(ACK_arr, next_fn)
         assert(ack_count < MAX_ACKS, gcs:send_text(0,
                 "HLK-LD2451 failed to ACK"))
 
-        return program_ack(ACK_arr, next_fn), 1
+        return handle_ack(ACK_arr, next_fn), 1
 
     else
         -- Read ACK, then call next function
@@ -255,15 +254,15 @@ local function program_ack(ACK_arr, next_fn)
             return next_fn, 1
         end
     end
-    return program_ack(ACK_arr, next_fn), 1
+    return handle_ack(ACK_arr, next_fn), 1
 end
 
-local function end_config()
+local function end_config_mode()
     for loop_idx = 1, #CONFIG_HEADER do
         serial_port:write(CONFIG_HEADER[loop_idx])
     end
-    for loop_idx = 1, #END_CONFIG do
-        serial_port:write(END_CONFIG[loop_idx])
+    for loop_idx = 1, #CONFIG_END do
+        serial_port:write(CONFIG_END[loop_idx])
     end
     for loop_idx = 1, #CONFIG_TRAILER do
         serial_port:write(CONFIG_TRAILER[loop_idx])
@@ -271,15 +270,15 @@ local function end_config()
 
     ack_count = 0
 
-    return program_ack(END_CONFIG_ACK, update), 1
+    return handle_ack(CONFIG_END_ACK, update), 1
 end
 
-local function setTargetDetection()
+local function set_target_detection()
     for loop_idx = 1, #CONFIG_HEADER do
         serial_port:write(CONFIG_HEADER[loop_idx])
     end
-    for loop_idx = 1, #CONFIGURATION do
-        serial_port:write(CONFIGURATION[loop_idx])
+    for loop_idx = 1, #CONFIG_DATA do
+        serial_port:write(CONFIG_DATA[loop_idx])
     end
     for loop_idx = 1, #CONFIG_TRAILER do
         serial_port:write(CONFIG_TRAILER[loop_idx])
@@ -287,11 +286,11 @@ local function setTargetDetection()
 
     ack_count = 0
 
-    return program_ack(TD_STATUS_ACK, end_config), 1
+    return handle_ack(TD_STATUS_ACK, end_config_mode), 1
 
 end
 
-local function command_mode()
+local function set_config_mode()
     for loop_idx = 1, #CONFIG_HEADER do
         serial_port:write(CONFIG_HEADER[loop_idx])
     end
@@ -304,11 +303,11 @@ local function command_mode()
 
     ack_count = 0
 
-    return program_ack(CONFIG_ACK, setTargetDetection), 1
+    return handle_ack(CONFIG_ACK, set_target_detection), 1
 
 end
 
 gcs:send_text(0, 
     string.format("hlk-lkd2451.lua #%d started", rangefinder_number))
 
-return command_mode, 1
+return set_config_mode, 1

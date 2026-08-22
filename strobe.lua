@@ -7,7 +7,7 @@
 --- @use
 ---   - Assign the strobe light relay's servo number to SCR_USER1
 --- 
----   - If you want to use an R/C on-off switch, assign the on-off R/C channel to
+---   - If you want to add an R/C on-off switch, assign the on-off R/C channel to
 ---     SCR_USER2, otherwise set SCR_USER2 to 0 (zero).
 
 local STROBE_SERVO = assert(param:get('SCR_USER1') - 1, 
